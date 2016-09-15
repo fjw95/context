@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"golang.org/x/net/context"
@@ -16,11 +14,13 @@ type Payment struct {
 }
 
 const (
-	confirmedKey = "confirmed.context.key"
+	confirmedKey   = "confirmed.context.key"
+	transactionKey = "transaction.context.key"
 )
 
-func ProcessPayment(ctx context.Context, payment *Payment) {
+func ProcessPayment(ctx context.Context) {
 	confirmed := ctx.Value(confirmedKey).(chan bool)
+	payment := ctx.Value(transactionKey).(*Payment)
 
 	for {
 		select {
@@ -29,10 +29,10 @@ func ProcessPayment(ctx context.Context, payment *Payment) {
 			return
 		case <-ctx.Done():
 			if ctx.Err() == context.Canceled {
-				fmt.Printf("Transaksi pembayarn anda dibatalkan. Uang sebesar Rp. %d dikembalikan.\n", payment.Amount)
+				fmt.Printf("Transaksi pembayaran anda dibatalkan! \nUang sebesar Rp. %d dikembalikan.\n", payment.Amount)
 				return
 			} else if ctx.Err() == context.DeadlineExceeded {
-				fmt.Println("Transaksi pembayaran anda kadaluarsa. Silahkan kembali lain waktu.")
+				fmt.Println("\nTransaksi pembayaran anda kadaluarsa. Silahkan kembali lain waktu.")
 				os.Exit(0)
 			}
 		default:
@@ -42,42 +42,48 @@ func ProcessPayment(ctx context.Context, payment *Payment) {
 }
 
 func main() {
-	var cancel context.CancelFunc
+	var (
+		cancel        context.CancelFunc
+		amount        int64
+		name, confirm string
+	)
+
+	fmt.Print("Masukkan nominal pembayaran:\nRp. ")
+	fmt.Scan(&amount)
+
+	fmt.Println("Isikan nama anda:")
+	fmt.Scanln(&name)
 
 	confirmed := make(chan bool)
 	ctx := context.WithValue(context.Background(), confirmedKey, confirmed)
-	ctx, cancel = context.WithTimeout(ctx, 10*time.Second)
+	ctx = context.WithValue(ctx, transactionKey, &Payment{
+		Name:   name,
+		Amount: amount})
+	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 
-	go ProcessPayment(ctx, &Payment{
-		Name:   "John Doe",
-		Amount: 1000000})
-
-	fmt.Print("Transaksi pembayaran anda tertunda. ")
-	if deadline, ok := ctx.Deadline(); ok {
-		fmt.Printf("Anda mempunyai waktu sekitar %s untuk menyelesaikan pembayaran.\n", deadline.Sub(time.Now()).String())
-	}
+	go ProcessPayment(ctx)
 
 	fmt.Println()
-	fmt.Println("Pilih salah satu pilihan untuk konfirmasi pembyaran:")
-	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Transaksi pembayaran anda tertunda. ")
+
+	fmt.Println()
+	fmt.Printf("Anda akan melakukan pembayaran sebesar %d \n", amount)
+	fmt.Printf("Atas Nama %s \n", name)
 
 	for {
 		fmt.Printf("[K]onfirmasi, (B)atalkan: ")
-		if line, err := reader.ReadString('\n'); err == nil {
-			command := strings.TrimSuffix(line, "\n")
-			switch command {
-			case "K":
-				confirmed <- true
-				time.Sleep(500 * time.Millisecond)
-				return
-			case "B":
-				cancel()
-				time.Sleep(500 * time.Millisecond)
-				return
-			default:
-				fmt.Printf("\nPilihan anda tidak tersedia: %s. Silahkan coba lagi.\n", command)
-				fmt.Println("Mohon konfirmasi pemayaran anda:")
-			}
+		fmt.Scanln(&confirm)
+
+		switch confirm {
+		case "K":
+			confirmed <- true
+			return
+		case "B":
+			cancel()
+			return
+		default:
+			fmt.Printf("\nPilihan anda tidak tersedia: %s. Silahkan coba lagi.\n", confirm)
+			fmt.Println("Mohon konfirmasi pembayaran anda:")
 		}
 	}
 }
