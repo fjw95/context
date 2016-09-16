@@ -25,7 +25,8 @@ func ProcessPayment(ctx context.Context) {
 	for {
 		select {
 		case <-confirmed:
-			fmt.Printf("Transaksi sebesar Rp. %d berhasil.\n", payment.Amount)
+			fmt.Printf("Transaksi sebesar Rp. %d berhasil ", payment.Amount)
+			fmt.Printf("a/n %s\n", payment.Name)
 			return
 		case <-ctx.Done():
 			if ctx.Err() == context.Canceled {
@@ -48,42 +49,45 @@ func main() {
 		name, confirm string
 	)
 
-	fmt.Print("Masukkan nominal pembayaran:\nRp. ")
+	fmt.Print("\nMasukkan nominal pembayaran:\nRp. ")
 	fmt.Scan(&amount)
 
-	fmt.Println("Isikan nama anda:")
+	fmt.Println("\nIsikan nama anda:")
 	fmt.Scanln(&name)
 
-	confirmed := make(chan bool)
-	ctx := context.WithValue(context.Background(), confirmedKey, confirmed)
-	ctx = context.WithValue(ctx, transactionKey, &Payment{
-		Name:   name,
-		Amount: amount})
-	ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
+	if name != "" && amount >= 0 {
+		confirmed := make(chan bool)
+		ctx := context.WithValue(context.Background(), confirmedKey, confirmed)
+		ctx = context.WithValue(ctx, transactionKey, &Payment{
+			Name:   name,
+			Amount: amount})
+		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 
-	go ProcessPayment(ctx)
+		go ProcessPayment(ctx)
 
-	fmt.Println()
-	fmt.Print("Transaksi pembayaran anda tertunda. ")
+		fmt.Printf("\nAnda akan melakukan pembayaran sebesar Rp. %d \n", amount)
+		fmt.Printf("A/n %s \n", name)
 
-	fmt.Println()
-	fmt.Printf("Anda akan melakukan pembayaran sebesar %d \n", amount)
-	fmt.Printf("Atas Nama %s \n", name)
+		for {
+			fmt.Printf("[K]onfirmasi, (B)atalkan: ")
+			fmt.Scanln(&confirm)
 
-	for {
-		fmt.Printf("[K]onfirmasi, (B)atalkan: ")
-		fmt.Scanln(&confirm)
-
-		switch confirm {
-		case "K":
-			confirmed <- true
-			return
-		case "B":
-			cancel()
-			return
-		default:
-			fmt.Printf("\nPilihan anda tidak tersedia: %s. Silahkan coba lagi.\n", confirm)
-			fmt.Println("Mohon konfirmasi pembayaran anda:")
+			switch confirm {
+			case "K":
+				confirmed <- true
+				return
+			case "B":
+				cancel()
+				return
+			default:
+				fmt.Printf("\nPilihan anda tidak tersedia: %s. Silahkan coba lagi.\n", confirm)
+				fmt.Println("Mohon konfirmasi pembayaran anda:")
+			}
 		}
+	} else if name != "" && amount < 0 {
+		fmt.Println("Nilai transaksi tidak boleh kosong")
+	} else if name == "" && amount >= 0 {
+		fmt.Println("Nama tidak boleh kosong")
 	}
+
 }
