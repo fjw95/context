@@ -20,7 +20,7 @@ const (
 
 func ProcessPayment(ctx context.Context) {
 	confirmed := ctx.Value(confirmedKey).(chan bool)
-	payment := ctx.Value(transactionKey).(*Payment)
+	payment := ctx.Value(transactionKey).(Payment)
 
 	for {
 		select {
@@ -47,6 +47,7 @@ func main() {
 		cancel        context.CancelFunc
 		amount        int64
 		name, confirm string
+		payment       Payment
 	)
 
 	fmt.Print("\nMasukkan nominal pembayaran:\nRp. ")
@@ -55,12 +56,12 @@ func main() {
 	fmt.Println("\nIsikan nama anda:")
 	fmt.Scanln(&name)
 
+	payment.Amount = amount
+	payment.Name = name
 	if name != "" && amount >= 0 {
 		confirmed := make(chan bool)
 		ctx := context.WithValue(context.Background(), confirmedKey, confirmed)
-		ctx = context.WithValue(ctx, transactionKey, &Payment{
-			Name:   name,
-			Amount: amount})
+		ctx = context.WithValue(ctx, transactionKey, payment)
 		ctx, cancel = context.WithTimeout(ctx, 30*time.Second)
 
 		go ProcessPayment(ctx)
@@ -89,5 +90,4 @@ func main() {
 	} else if name == "" && amount >= 0 {
 		fmt.Println("Nama tidak boleh kosong")
 	}
-
 }
